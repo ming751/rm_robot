@@ -46,14 +46,14 @@ def main():
 
 
 
-    for i in range(61):
+    for i in range(181):
         target_pos = initial_pos.copy()
         target_pos[2] += + np.sin(i * np.pi / 30) * 0.03
 
         #z = initial_pos[2] - 0.1
         #z = initial_pos[2] +0.01 # + np.sin(i * np.pi / 30) * 0.03
 
-        print(target_pos)
+        #print(target_pos)
 
         
         time1 = time.time()

@@ -31,7 +31,10 @@ class RobotKinematics:
         """
         # Load URDF model
         #self.model = pin.buildModelFromMJCF(model_path)
-        self.model = pin.buildModelFromUrdf(model_path)
+        if model_path.endswith(".xml"):
+            self.model = pin.buildModelFromMJCF(model_path)
+        else:
+            self.model = pin.buildModelFromUrdf(model_path)
         self.data = self.model.createData()
         
         # Store end effector frame info
@@ -302,7 +305,7 @@ class RobotKinematics:
             })
 
     def solve_optimization_ik(self, q_init, target_pos, target_rot=None,
-                             max_iter=100, tol=1e-3, reg_weight=0.0001):
+                             max_iter=100, tol=1e-3, reg_weight=0.001):
         """求解预定义的优化问题"""
         # 设置参数值
         if q_init is None:
