@@ -72,7 +72,7 @@
         </body>
       </body>
     </body>
-    <site name="trace" pos="0 0 0" size="0.01" rgba="1 0 0 1"/>
+    <site name="trace1" pos="0 0 0" size="0.01" rgba="1 0 0 1"/>
   </worldbody>
 	<actuator>
 

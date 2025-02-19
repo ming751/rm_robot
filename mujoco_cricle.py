@@ -23,7 +23,7 @@ def main():
     inv_joint = np.zeros(6)
     
     # 获取site的ID
-    trace_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "trace")
+    trace_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, "trace1")
     print(trace_id)
     
     # 创建轨迹点存储列表
@@ -35,17 +35,17 @@ def main():
         t = (dt.second / 60.) * 2. * math.pi
 
         # 计算目标位置
-        current_pos = [0.2, 0.2 * math.sin(t), 0.2 * math.cos(t) + 0.4]
+        current_pos = [0.2, 0.2 * math.sin(t), 0.2 * math.cos(t) + 0.3]
         
         # 求解逆运动学
-        inv_joint, flag = rcontroller.solve_inverse_kinematics(inv_joint, current_pos, desired_rot)
+        inv_joint, flag = rcontroller.solve_optimization_ik(inv_joint, current_pos)
         
         if True:  # 如果逆运动学求解成功
             # 更新机器人位置
             data.qpos[:] = inv_joint
             
             # 更新site位置到当前末端位置
-            data.site_xpos[trace_id] = current_pos
+            data.site_xpos[trace_id] = np.array(current_pos)
             #print(data.site_xpos[trace_id])
             
             # 存储轨迹点（如果需要的话）
