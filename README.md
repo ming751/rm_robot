@@ -60,14 +60,17 @@ To use this repository, follow these steps:
 3. Run the script:
 
 ### trajectory planning
+trajectory_planning.py
     ```bash
     python trajectory_planning.py
     ```
 ### trajectory optimization
+controller class
     ```bash
     python controller.py
     ```
 ### run mujoco simulation
+run mujoco simulation
     ```bash
     python mujoco_simulation.py
     ```
