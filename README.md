@@ -26,6 +26,7 @@ Inverse kinematics solution(based ik and optimization)
 To use this repository, follow these steps:
 
 1. Install the dependencies(we recommend linux platform):
+
    use conda to install the pinocchio for full version.
    1) update the conda:
     ```bash
@@ -44,7 +45,12 @@ To use this repository, follow these steps:
     ```bash
     conda install -c pinocchio
     ```
+   5) install the other dependencies:
+    ```bash
+    pip install -r requirement.txt
+    ```
 2. Clone the repository:
+
     ```bash
     git clone https://github.com/ming751/rm_robot.git
     ```
