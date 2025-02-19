@@ -6,49 +6,65 @@ Welcome to the RM Robot project! This repository contains the controller and tra
 
 - [Introduction](#introduction)
 - [Features](#features)
-- [Installation](#installation)
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## Introduction
-
-The RM Robot is designed to perform a variety of tasks with high precision and reliability. This project aims to provide an easy-to-use and customizable robotic platform for developers and researchers.
+This is a repository for rm bots, you can use it for your bots too.
+Mainly includes Cartesian space pose trajectory planning.
+Inverse kinematics solution(based ik and optimization)
 
 ## Features
 
-- High precision movement
-- Customizable control algorithms
-- Easy integration with other systems
-- Comprehensive documentation
-
-## Installation
-
-To install the RM Robot software, follow these steps:
-
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/yourusername/rm_robot.git
-    ```
-2. Navigate to the project directory:
-    ```bash
-    cd rm_robot
-    ```
-3. Install the required dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+- Easy to migrate to other robots
+- Optimization method for ik is more robust(based on pinocchio and casadi)
+- Trajectory planning is more flexible(Just enter the waypoint)
 
 ## Usage
 
-To start using the RM Robot, follow these steps:
+To use this repository, follow these steps:
 
-1. Connect the robot to your computer.
-2. Run the main control script:
+1. Install the dependencies(we recommend linux platform):
+   use conda to install the pinocchio for full version.
+   1) update the conda:
     ```bash
-    python main.py
+    conda update -n base -c defaults conda
     ```
-3. Follow the on-screen instructions to control the robot.
+   2) create an conda environment and activate it:
+    ```bash
+    conda create -n rm_robot python=3.10
+    conda activate rm_robot
+    ```
+   3) add conda-forge channel:
+    ```bash
+    conda config --add channels conda-forge
+    ```
+   4) install the pinocchio:
+    ```bash
+    conda install -c pinocchio
+    ```
+2. Clone the repository:
+    ```bash
+    git clone https://github.com/ming751/rm_robot.git
+    ```
+    ```bash
+    cd rm_robot
+    ```
+3. Run the script:
+
+### trajectory planning
+    ```bash
+    python trajectory_planning.py
+    ```
+### trajectory optimization
+    ```bash
+    python controller.py
+    ```
+### run mujoco simulation
+    ```bash
+    python mujoco_simulation.py
+    ```
 
 ## Contributing
 
