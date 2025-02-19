@@ -12,8 +12,16 @@ from typing import Optional, Tuple
 
 os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'  # 兼容OpenGL
 
+"""
+文件描述: 一个包含机械臂运动学计算的类，包括正运动学计算，逆运动学计算(pybullet求逆以及单步求逆),对轨迹优化求逆等等
+四元数格式: scipy pybullet pinocchio 均使用相同的四元数格式 (x,y,z,w)
+创建日期: 2025-02-19
+版本: 1.0
+更新记录:
+    2025-02-19: 初始版本
+"""
 class RobotKinematics:
-    def __init__(self, model_path, end_frame_name,predict_horzion = 1):
+    def __init__(self, model_path, end_frame_name):
         """
         Initialize the robot kinematics class.
         
@@ -23,7 +31,7 @@ class RobotKinematics:
         """
         # Load URDF model
         #self.model = pin.buildModelFromMJCF(model_path)
-        self.model = pin.buildModelFromUrdf("urdf/rm_65.urdf")
+        self.model = pin.buildModelFromUrdf(model_path)
         self.data = self.model.createData()
         
         # Store end effector frame info
@@ -65,11 +73,11 @@ class RobotKinematics:
         pin.updateFramePlacements(self.model, self.data)
         return self.data.oMf[self.endEffector_ID].translation
     
-    def get_eef_pose(self, q:np.ndarray):
+    def forward_kinematics(self,q):
         pin.forwardKinematics(self.model, self.data, q)
         pin.updateFramePlacements(self.model, self.data)
-        return self.data.oMf[self.endEffector_ID]
-
+        return self.data.oMf[self.endEffector_ID].translation,self.data.oMf[self.endEffector_ID].rotation
+    
     def _create_error_functions(self):
         """Create the 3D and 6D error functions using Casadi"""
         # 3D position error function
@@ -95,20 +103,20 @@ class RobotKinematics:
         """返回6D位姿误差"""
         return np.asarray(self.error6_tool(q, target_pos, target_rot)).flatten()
 
-    def solve_trajectory_optimization(self, initial_q, target_pos, target_rot, T=10, w_run=0.001, w_term=100.0):
+    def solve_trajectory_optimization(self, initial_q, target_poses, T=10,
+                                      w_run_vel=0.01,w_run_pose=1,w_term=100.0):
         """
         Solve trajectory optimization problem.
         
         Args:
             initial_q (np.ndarray): Initial joint configuration
-            target_pos (np.ndarray): Target position
-            target_rot (np.ndarray): Target rotation matrix
+            target_pose (List): Target pose composed with pos and rotation matrix
             T (int): Number of timesteps
-            w_run (float): Running cost weight
-            w_term (float): Terminal cost weight
-            
+            w_run_vel (float): Running cost weight of velocity
+            w_run_term (float): Running cost weight of pose error
+            w_term(float):Terminal cost of pose error            
         Returns:
-            list: Optimized joint trajectories
+            list , float: Optimized joint trajectories, terminal error
         """
         opti = casadi.Opti()
         var_qs = [opti.variable(self.model.nq) for t in range(T + 1)]
@@ -116,19 +124,19 @@ class RobotKinematics:
         # Define cost function
         totalcost = 0
         for t in range(T):
-            totalcost += w_run * casadi.sumsqr(var_qs[t] - var_qs[t + 1])
+            target_pos ,target_rot = target_poses[t]
+            totalcost += w_run_vel * casadi.sumsqr(var_qs[t] - var_qs[t + 1])
+            totalcost += w_run_pose *casadi.sumsqr(self.error6_tool(var_qs[T], target_pos, target_rot))
+        target_pos , target_rot = target_poses[t]
         totalcost += w_term * casadi.sumsqr(self.error6_tool(var_qs[T], target_pos, target_rot))
         
         # Add constraints
         opti.subject_to(var_qs[0] == initial_q)
-        # for t in range(T + 1):
-        #     for j in range(self.model.nq):
-                # limit_range = self.joint_limits['upper'][j] - self.joint_limits['lower'][j]
-                # margin = limit_range * joint_limit_margin
-                
-                # Apply joint position limits with margin
-                # opti.subject_to(var_qs[t][j] <= self.joint_limits['upper'][j] )
-                # opti.subject_to(var_qs[t][j] >= self.joint_limits['lower'][j] )
+        for t in range(T + 1):
+            for j in range(self.model.nq):           
+                #Apply joint position limits with margin
+                opti.subject_to(var_qs[t][j] <= self.joint_limits['upper'][j] )
+                opti.subject_to(var_qs[t][j] >= self.joint_limits['lower'][j] ) 
         
         # Set up and solve optimization
         opti.minimize(totalcost)
@@ -146,34 +154,11 @@ class RobotKinematics:
         except:
             print("ERROR in convergence, using debug values.")
             sol_qs = [opti.debug.value(var_q) for var_q in var_qs]
+
+        # 计算终端误差
+        term_error = self.compute_pose_error(sol_qs[T], target_pos, target_rot)
             
-        return sol_qs
-    
-    def forward_kinematics(self,q):
-        pin.forwardKinematics(self.model, self.data, q)
-        pin.updateFramePlacements(self.model, self.data)
-        return self.data.oMf[self.endEffector_ID].translation,self.data.oMf[self.endEffector_ID].rotation
-    
-    def pin_to_pybullet_quat(self,pin_quat):
-        # 将[w, x, y, z]转换为[x, y, z, w]
-        return [pin_quat[1], pin_quat[2], pin_quat[3], pin_quat[0]]
-    
-    def accurateCalculateInverseKinematics(self,targetPos, threshold, maxIter):
-        closeEnough = False
-        iter = 0
-        dist2 = 1e30
-        while (not closeEnough and iter < maxIter):
-            jointPoses = p.calculateInverseKinematics(self.robot_id, self.eef_id_p, targetPos)
-            for i in range(self.num_joints):
-                p.resetJointState(self.robot_id, i, jointPoses[i])
-                ls = p.getLinkState(self.robot_id, self.eef_id_p)
-                newPos = ls[4]
-                diff = [targetPos[0] - newPos[0], targetPos[1] - newPos[1], targetPos[2] - newPos[2]]
-                dist2 = (diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2])
-                closeEnough = (dist2 < threshold)
-                iter = iter + 1
-        #print ("Num iter: "+str(iter) + "threshold: "+str(dist2))
-        return jointPoses
+        return sol_qs , term_error
     
     def solve_inverse_kinematics(self, current_q, target_pos, target_rot=None, 
                                 urdf_path = "urdf/rm_65.urdf",

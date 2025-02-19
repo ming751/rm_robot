@@ -9,6 +9,18 @@ import casadi
 from scipy.spatial.transform import Rotation, Slerp
 from mpl_toolkits.mplot3d import Axes3D
 
+# -*- coding: utf-8 -*-
+"""
+文件描述: 这是一个轨迹规划脚本，用来对目标位置姿态进行插值
+内容描述: interpolate_poses_bspline方法用来对位姿进行插值,位置采用样条插值，姿态采用四元数球面插值，输入格式[(pos1,ori1),(pos2,ori2)]
+四元数格式: scipy pybullet pinocchio 均使用相同的四元数格式 (x,y,z,w)
+创建日期: 2025-02-19
+版本: 1.0
+更新记录:
+    2025-02-19: 初始版本
+"""
+
+
 def plot_interpolated_poses(interpolated_poses, target_poses=None):
     """
     Plot the interpolated poses from the interpolate_poses function.
@@ -72,27 +84,36 @@ def interpolate_poses_bspline(target_poses, T):
     positions = np.array([pos for pos, _ in target_poses])
     rotations = np.array([rot for _, rot in target_poses])
     
-    # Create time arrays
+    # 输入检查
+    if len(target_poses) < 2:
+        raise ValueError("至少需要两个目标点进行插值")
+    
+    # 创建时间数组
     original_times = np.linspace(0, 1, len(target_poses))
     interp_times = np.linspace(0, 1, T + 1)
     
-
+    # 根据点数动态选择样条阶数，并添加约束
     if len(target_poses) == 2:
-        k = 1
+        k = 1  # 线性插值
     elif len(target_poses) == 3:
-        k = 2
+        k = 2  # 二次样条
     else:
-        k = 3
-
-    # Interpolate positions using B-spline
+        k = min(3, len(target_poses) - 1)  # 限制最高阶数
+        
+    # 位置插值
     interpolated_positions = []
     for i in range(3):  # x, y, z
         pos_component = positions[:, i]
-        # Create B-spline interpolator
-        # k=3 for cubic B-spline
-        bspline = make_interp_spline(original_times, pos_component, k=k)
-        interp_pos = bspline(interp_times)
-        interpolated_positions.append(interp_pos)
+        try:
+            bspline = make_interp_spline(original_times, pos_component, k=k)
+            interp_pos = bspline(interp_times)
+            # 检查插值结果
+            if np.any(np.isnan(interp_pos)):
+                raise ValueError(f"位置插值结果包含NaN值")
+            interpolated_positions.append(interp_pos)
+        except Exception as e:
+            raise ValueError(f"位置插值失败: {str(e)}")
+            
     interpolated_positions = np.array(interpolated_positions).T
     
     # Convert rotation matrices to quaternions for interpolation
@@ -113,7 +134,23 @@ def interpolate_poses_bspline(target_poses, T):
                                 [rot for rot in interpolated_rots]))
     return interpolated_poses
 
-def main():
+# 检查 Pinocchio 版本
+def check_quaternion_format():
+    """检查当前 Pinocchio 版本的四元数格式"""
+    # 创建一个单位旋转
+    q_identity = pin.Quaternion(np.eye(3)).coeffs()
+    
+    # 检查格式
+    if np.allclose(q_identity, [0,0,0,1]):
+        print("当前使用 [x,y,z,w] 格式")
+        return "xyzw"
+    elif np.allclose(q_identity, [1,0,0,0]):
+        print("当前使用 [w,x,y,z] 格式")
+        return "wxyz"
+    else:
+        raise ValueError("无法确定四元数格式")
+
+def test():
     # 创建示例目标点
     # 每个目标点包含位置和旋转矩阵
     target_poses = [
@@ -135,6 +172,40 @@ def main():
     # 可视化结果
     plot_interpolated_poses(interpolated_poses, target_poses)
 
+def test_trajectory_optimization():
+    from controller import RobotKinematics
+    model_path = "urdf/rm_65.urdf"
+    end_franme_name = 'Link6'
+    controller = RobotKinematics(model_path,end_franme_name)
+
+    target_poses = [
+        # 位置1：原点，旋转矩阵：单位矩阵
+        (np.array([0, 0, 0.1]), np.eye(3)),
+        # 位置2：x方向移动，绕z轴旋转45度
+        (np.array([1, 0, 0.2]), Rotation.from_euler('z', 45, degrees=True).as_matrix()),
+        # 位置3：xy平面移动，绕x轴旋转30度
+        (np.array([0.1, 0.1, 0.7]), Rotation.from_euler('x', 0, degrees=True).as_matrix())
+    ]
+
+    intered_poses = interpolate_poses_bspline(target_poses,100)
+
+    initial_q = np.ones(6)
+
+    inv_qs , term_error = controller.solve_trajectory_optimization(initial_q,intered_poses,100,
+                                                                   w_run_vel=0.01,
+                                                                   w_run_pose=1,
+                                                                   w_term=1000.0)
+
+    print(term_error)
+
 if __name__ == "__main__":
-    main()
+    test_trajectory_optimization()
+
+
+
+    # 可以看到两者表示相同的旋转，但格式不同
+
+
+
+
 
